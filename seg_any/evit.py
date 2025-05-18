@@ -146,6 +146,37 @@ class EfficientSam(nn.Module):
             iou_predictions, (batch_size, max_num_queries, num_predictions)
         )
         return output_masks, iou_predictions
+    
+    def postprocess_masks(
+        self,
+        masks: torch.Tensor,
+        input_size: Tuple[int, ...],
+        original_size: Tuple[int, ...],
+    ) -> torch.Tensor:
+        """
+        Remove padding and upscale masks to the original image size.
+
+        Arguments:
+          masks (torch.Tensor): Batched masks from the mask_decoder,
+            in BxCxHxW format.
+          input_size (tuple(int, int)): The size of the image input to the
+            model, in (H, W) format. Used to remove padding.
+          original_size (tuple(int, int)): The original size of the image
+            before resizing for input to the model, in (H, W) format.
+
+        Returns:
+          (torch.Tensor): Batched masks in BxCxHxW format, where (H, W)
+            is given by original_size.
+        """
+        masks = F.interpolate(
+            masks,
+            (self.image_encoder.img_size, self.image_encoder.img_size),
+            mode="bilinear",
+            align_corners=False,
+        )
+        masks = masks[..., : input_size[0], : input_size[1]]
+        masks = F.interpolate(masks, original_size, mode="bilinear", align_corners=False)
+        return masks
 
     def get_rescaled_pts(self, batched_points: torch.Tensor, input_h: int, input_w: int):
         return torch.stack(
@@ -236,45 +267,6 @@ class EfficientSam(nn.Module):
             output_w=input_w if scale_to_original_image_size else -1,
         )
     
-    # def forward_train(
-    #     self,
-    #     batched_input: List[Dict[str, Any]],
-    #     multimask_output: bool,
-    #     image_size: Tuple[int, ...],
-    #     input_image_embeddings: torch.Tensor = None,
-    # ) -> List[Dict[str, torch.Tensor]]:
-
-    #     image_embeddings = input_image_embeddings
-    #     outputs = []
-    #     for image_record, curr_embedding in zip(batched_input, image_embeddings):
-    #         points = (image_record["point_coords"], image_record["point_labels"])
-    #         sparse_embeddings, dense_embeddings = self.prompt_encoder(
-    #             points=points,
-    #             boxes=image_record.get("boxes", None),
-    #             masks=image_record.get("mask_inputs", None),
-    #         )
-    #         low_res_masks, iou_predictions = self.mask_decoder(
-    #             image_embeddings=curr_embedding.unsqueeze(0),
-    #             image_pe=self.prompt_encoder.get_dense_pe(),
-    #             sparse_prompt_embeddings=sparse_embeddings,
-    #             dense_prompt_embeddings=dense_embeddings,
-    #             multimask_output=multimask_output,
-    #         )
-    #         masks = self.postprocess_masks(
-    #             low_res_masks,
-    #             input_size=image_size,
-    #             original_size=image_record["original_size"],
-    #         )
-    #         masks = masks > self.mask_threshold
-    #         outputs.append(
-    #             {
-    #                 "masks": masks,
-    #                 "iou_predictions": iou_predictions,
-    #                 "low_res_logits": low_res_masks,
-    #             }
-    #         )
-    #     return outputs
-
     def forward_train(
         self,
         batched_input: List[Dict[str, Any]],
@@ -282,62 +274,101 @@ class EfficientSam(nn.Module):
         image_size: Tuple[int, ...],
         input_image_embeddings: torch.Tensor = None,
     ) -> List[Dict[str, torch.Tensor]]:
-        """
-        Forward pass during training for batched inputs.
 
-        Args:
-            batched_input: A list of dicts, each containing:
-                - "point_coords": [num_queries, num_points, 2]
-                - "point_labels": [num_queries, num_points]
-                - "original_size": Tuple[int, int]
-            multimask_output: Whether to output multiple masks per prompt.
-            image_size: The input image size (H, W) before resizing.
-            input_image_embeddings: Optional precomputed image embeddings 
-                of shape [B, C, H, W]. If not provided, compute from image input.
-
-        Returns:
-            List of dicts for each image with keys:
-                - "masks": Thresholded masks (bool)
-                - "iou_predictions": IoU scores
-                - "low_res_logits": Raw low-res logits
-        """
+        image_embeddings = input_image_embeddings
         outputs = []
-
-        if input_image_embeddings is None:
-            images = torch.stack([record["image"] for record in batched_input], dim=0)
-            input_image_embeddings = self.get_image_embeddings(images)
-
-        batch_size = len(batched_input)
-        device = input_image_embeddings.device
-
-        # Gather prompts
-        # batched_points = torch.stack([rec["point_coords"] for rec in batched_input]).to(device)
-        batched_points = torch.cat([rec["point_coords"] for rec in batched_input], dim=0).to(device)
-        # batched_point_labels = torch.stack([rec["point_labels"] for rec in batched_input]).to(device)
-        batched_point_labels = torch.cat([rec["point_labels"] for rec in batched_input], dim=0).to(device)
-
-        input_h, input_w = image_size
-
-        masks, iou_predictions = self.predict_masks(
-            input_image_embeddings,
-            batched_points,
-            batched_point_labels,
-            multimask_output=multimask_output,
-            input_h=input_h,
-            input_w=input_w,
-            output_h=input_h,
-            output_w=input_w,
-        )
-
-        for i, rec in enumerate(batched_input):
-            masks_i = masks[i] > self.mask_threshold
-            outputs.append({
-                "masks": masks_i,
-                "iou_predictions": iou_predictions[i],
-                "low_res_logits": masks[i],  # raw logits
-            })
-
+        for image_record, curr_embedding in zip(batched_input, image_embeddings):
+            points = (image_record["point_coords"], image_record["point_labels"])
+            sparse_embeddings, dense_embeddings = self.prompt_encoder(
+                points=points,
+                boxes=image_record.get("boxes", None),
+                masks=image_record.get("mask_inputs", None),
+            )
+            low_res_masks, iou_predictions = self.mask_decoder(
+                image_embeddings=curr_embedding.unsqueeze(0),
+                image_pe=self.prompt_encoder.get_dense_pe(),
+                sparse_prompt_embeddings=sparse_embeddings,
+                dense_prompt_embeddings=dense_embeddings,
+                multimask_output=multimask_output,
+            )
+            masks = self.postprocess_masks(
+                low_res_masks,
+                input_size=image_size,
+                original_size=image_record["original_size"],
+            )
+            masks = masks > self.mask_threshold
+            outputs.append(
+                {
+                    "masks": masks,
+                    "iou_predictions": iou_predictions,
+                    "low_res_logits": low_res_masks,
+                }
+            )
         return outputs
+
+    # def forward_train(
+    #     self,
+    #     batched_input: List[Dict[str, Any]],
+    #     multimask_output: bool,
+    #     image_size: Tuple[int, ...],
+    #     input_image_embeddings: torch.Tensor = None,
+    # ) -> List[Dict[str, torch.Tensor]]:
+    #     """
+    #     Forward pass during training for batched inputs.
+
+    #     Args:
+    #         batched_input: A list of dicts, each containing:
+    #             - "point_coords": [num_queries, num_points, 2]
+    #             - "point_labels": [num_queries, num_points]
+    #             - "original_size": Tuple[int, int]
+    #         multimask_output: Whether to output multiple masks per prompt.
+    #         image_size: The input image size (H, W) before resizing.
+    #         input_image_embeddings: Optional precomputed image embeddings 
+    #             of shape [B, C, H, W]. If not provided, compute from image input.
+
+    #     Returns:
+    #         List of dicts for each image with keys:
+    #             - "masks": Thresholded masks (bool)
+    #             - "iou_predictions": IoU scores
+    #             - "low_res_logits": Raw low-res logits
+    #     """
+    #     outputs = []
+
+    #     if input_image_embeddings is None:
+    #         images = torch.stack([record["image"] for record in batched_input], dim=0)
+    #         input_image_embeddings = self.get_image_embeddings(images)
+
+    #     batch_size = len(batched_input)
+    #     device = input_image_embeddings.device
+
+    #     # Gather prompts
+    #     # batched_points = torch.stack([rec["point_coords"] for rec in batched_input]).to(device)
+    #     batched_points = torch.cat([rec["point_coords"] for rec in batched_input], dim=0).to(device)
+    #     # batched_point_labels = torch.stack([rec["point_labels"] for rec in batched_input]).to(device)
+    #     batched_point_labels = torch.cat([rec["point_labels"] for rec in batched_input], dim=0).to(device)
+
+    #     input_h, input_w = image_size
+
+    #     masks, iou_predictions = self.predict_masks(
+    #         input_image_embeddings,
+    #         batched_points,
+    #         batched_point_labels,
+    #         multimask_output=multimask_output,
+    #         input_h=input_h,
+    #         input_w=input_w,
+    #         output_h=input_h,
+    #         output_w=input_w,
+    #     )
+
+    #     for i, rec in enumerate(batched_input):
+    #         masks_i = masks[i] > self.mask_threshold
+    #         outputs.append({
+    #             "masks": masks_i,
+    #             "iou_predictions": iou_predictions[i],
+    #             "low_res_logits": masks[i],  # raw logits
+    #         })
+
+    #     return outputs
 
     def preprocess(self, x: torch.Tensor) -> torch.Tensor:
         """Normalize pixel values and pad to a square input."""
