@@ -16,10 +16,9 @@ from tqdm import tqdm
 from cell_loss import cell_prob_mse_loss, cross_entropy_loss
 from data.dataset import TrainDataset
 from gpu_memory_tracker import GPUMemoryTracker
-from peft.sam_lora_image_encoder_mask_decoder import LoRA_Sam
+from peft.sam_lora_image_encoder_mask_decoder import LoRA_ESAM#, LoRA_Sam
 from sampler import create_collate_fn
-from segment_anything import sam_model_registry
-# from mobile_sam import sam_model_registry
+from seg_any import sam_model_registry
 from set_environment import set_env
 from predict import load_model_from_config
 
@@ -50,13 +49,13 @@ def load_eval_dataset(config: Dict) -> TrainDataset:
     )
 
 
-def load_model(config: Dict) -> LoRA_Sam:
+def load_model(config: Dict) -> LoRA_ESAM:
     model = sam_model_registry[config["vit_name"]](checkpoint=config["model_path"], image_size=config["sam_image_size"])
-    return LoRA_Sam(model, config).cuda()
+    return LoRA_ESAM(model, config).cuda()
 
 
 def setup_training(
-    config: Dict, model: LoRA_Sam, train_dataset: TrainDataset, test_dataset: TrainDataset = None
+    config: Dict, model: LoRA_ESAM, train_dataset: TrainDataset, test_dataset: TrainDataset = None
 ) -> Tuple[DataLoader, optim.Optimizer, OneCycleLR]:
     optimizer = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
@@ -148,7 +147,7 @@ def is_valid_batch(images: List[np.ndarray], all_points: List[List[np.ndarray]])
 
 
 def compute_loss(
-    model: LoRA_Sam,
+    model: LoRA_ESAM,
     config: Dict,
     batch_images: List[torch.Tensor],
     batch_points: List[Dict[str, torch.Tensor]],
@@ -179,7 +178,7 @@ def compute_loss(
 
 
 def train_epoch(
-    model: LoRA_Sam,
+    model: LoRA_ESAM,
     config: Dict,
     trainloader: DataLoader,
     testloader: DataLoader,
@@ -239,11 +238,11 @@ def train_epoch(
     return train_loss, val_loss
 
 
-def save_model_pth(model: LoRA_Sam, save_path: str):
+def save_model_pth(model: LoRA_ESAM, save_path: str):
     model.save_lora_parameters(save_path)
 
 
-def main(config_path: Union[str, Dict, Path], save_model: bool = True) -> LoRA_Sam:
+def main(config_path: Union[str, Dict, Path], save_model: bool = True) -> LoRA_ESAM:
     if isinstance(config_path, dict):
         config = config_path
     elif isinstance(config_path, str) or isinstance(config_path, Path):

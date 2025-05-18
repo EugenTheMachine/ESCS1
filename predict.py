@@ -12,8 +12,8 @@ from data.utils import (
     remap_mask_color,
     resize_image,
 )
-from peft.sam_lora_image_encoder_mask_decoder import LoRA_Sam
-from segment_anything import SamAutomaticMaskGeneratorOptMaskNMS, sam_model_registry
+from peft.sam_lora_image_encoder_mask_decoder import LoRA_ESAM#, LoRA_Sam
+from seg_any import SamAutomaticMaskGeneratorOptMaskNMS, sam_model_registry
 from set_environment import set_env
 
 
@@ -75,9 +75,21 @@ def predict_images(config, images, progress_callback=None, stop_event=None):
     return pred_masks
 
 
-def load_model_from_config(config, empty_lora=False) -> LoRA_Sam:
+# def load_model_from_config(config, empty_lora=False) -> LoRA_Sam:
+    # model = sam_model_registry[config["vit_name"]](checkpoint=config["model_path"], image_size=config["sam_image_size"])
+    # model = LoRA_Sam(model, config)
+    # model = model.cuda()
+    # if empty_lora:
+    #     pass
+    # else:
+    #     print("Loading LoRa weights for the SAM model...")
+    #     model.load_lora_parameters(Path(config["result_pth_path"]))
+    #     print("Weights loaded successfully.")
+    # return model
+
+def load_model_from_config(config, empty_lora=False) -> LoRA_ESAM:
     model = sam_model_registry[config["vit_name"]](checkpoint=config["model_path"], image_size=config["sam_image_size"])
-    model = LoRA_Sam(model, config)
+    model = LoRA_ESAM(model, config)
     model = model.cuda()
     if empty_lora:
         pass

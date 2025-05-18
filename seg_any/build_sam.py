@@ -7,14 +7,31 @@ from functools import partial
 import torch
 from torch.nn import functional as F
 
-from segment_anything.modeling import (
+from seg_any.modeling import (
     ImageEncoderViT,
     MaskDecoder,
     PromptEncoder,
     Sam,
     TwoWayTransformer,
 )
+from seg_any.evit import build_efficient_sam
 
+
+def build_efficient_sam_vitt(checkpoint=None, image_size=1024):
+    return build_efficient_sam(
+        encoder_patch_embed_dim=192,
+        encoder_num_heads=3,
+        checkpoint=checkpoint,
+        image_size=image_size
+    )
+
+def build_efficient_sam_vits(checkpoint=None, image_size=1024):
+    return build_efficient_sam(
+        encoder_patch_embed_dim=384,
+        encoder_num_heads=6,
+        checkpoint=checkpoint,
+        image_size=image_size
+    )
 
 def build_sam_vit_h(checkpoint=None, image_size=1024):
     return _build_sam(
@@ -54,6 +71,9 @@ sam_model_registry = {
     "vit_h": build_sam_vit_h,
     "vit_l": build_sam_vit_l,
     "vit_b": build_sam_vit_b,
+    "evit": build_efficient_sam_vitt,
+    "vit_t": build_efficient_sam_vitt,
+    "vit_s": build_efficient_sam_vits,
 }
 
 
