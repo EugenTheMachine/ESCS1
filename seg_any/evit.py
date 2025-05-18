@@ -279,11 +279,14 @@ class EfficientSam(nn.Module):
         outputs = []
         for image_record, curr_embedding in zip(batched_input, image_embeddings):
             points = (image_record["point_coords"], image_record["point_labels"])
-            sparse_embeddings, dense_embeddings = self.prompt_encoder(
-                points=points,
-                boxes=image_record.get("boxes", None),
-                masks=image_record.get("mask_inputs", None),
-            )
+            # sparse_embeddings, dense_embeddings = self.prompt_encoder(
+            #     points=points,
+            #     boxes=image_record.get("boxes", None),
+            #     masks=image_record.get("mask_inputs", None),
+            # )
+            coords, labels = points
+            sparse_embeddings = self.prompt_encoder(coords, labels)
+            dense_embeddings = self.prompt_encoder.get_dense_pe()
             low_res_masks, iou_predictions = self.mask_decoder(
                 image_embeddings=curr_embedding.unsqueeze(0),
                 image_pe=self.prompt_encoder.get_dense_pe(),

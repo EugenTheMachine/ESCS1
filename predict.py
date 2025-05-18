@@ -15,6 +15,7 @@ from data.utils import (
 from peft.sam_lora_image_encoder_mask_decoder import LoRA_ESAM#, LoRA_Sam
 from seg_any import SamAutomaticMaskGeneratorOptMaskNMS, sam_model_registry
 from set_environment import set_env
+from efficient_sam.efficient_sam_encoder import C
 
 
 def sam_output_to_mask(output):
