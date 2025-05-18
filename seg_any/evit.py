@@ -179,6 +179,11 @@ class EfficientSam(nn.Module):
         """
         batched_images = self.preprocess(batched_images)
         return self.image_encoder(batched_images)
+    
+    def encoder_image_embeddings(self, images: List[torch.Tensor],):
+        input_images = torch.stack([self.preprocess(x) for x in images], dim=0)
+        image_embeddings = self.image_encoder(input_images)
+        return image_embeddings
 
     def forward(
         self,
@@ -214,6 +219,45 @@ class EfficientSam(nn.Module):
             output_h=input_h if scale_to_original_image_size else -1,
             output_w=input_w if scale_to_original_image_size else -1,
         )
+    
+    def forward_train(
+        self,
+        batched_input: List[Dict[str, Any]],
+        multimask_output: bool,
+        image_size: Tuple[int, ...],
+        input_image_embeddings: torch.Tensor = None,
+    ) -> List[Dict[str, torch.Tensor]]:
+
+        image_embeddings = input_image_embeddings
+        outputs = []
+        for image_record, curr_embedding in zip(batched_input, image_embeddings):
+            points = (image_record["point_coords"], image_record["point_labels"])
+            sparse_embeddings, dense_embeddings = self.prompt_encoder(
+                points=points,
+                boxes=image_record.get("boxes", None),
+                masks=image_record.get("mask_inputs", None),
+            )
+            low_res_masks, iou_predictions = self.mask_decoder(
+                image_embeddings=curr_embedding.unsqueeze(0),
+                image_pe=self.prompt_encoder.get_dense_pe(),
+                sparse_prompt_embeddings=sparse_embeddings,
+                dense_prompt_embeddings=dense_embeddings,
+                multimask_output=multimask_output,
+            )
+            masks = self.postprocess_masks(
+                low_res_masks,
+                input_size=image_size,
+                original_size=image_record["original_size"],
+            )
+            masks = masks > self.mask_threshold
+            outputs.append(
+                {
+                    "masks": masks,
+                    "iou_predictions": iou_predictions,
+                    "low_res_logits": low_res_masks,
+                }
+            )
+        return outputs
 
     def preprocess(self, x: torch.Tensor) -> torch.Tensor:
         """Normalize pixel values and pad to a square input."""
