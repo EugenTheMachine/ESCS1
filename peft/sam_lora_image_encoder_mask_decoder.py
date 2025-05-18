@@ -64,28 +64,28 @@ class _LoRA_qkv(nn.Module):
         else:
             self.lora_dropout = lambda x: x
 
-    def forward(self, x):
-        qkv = self.qkv(x)  # B,N,N,3*org_C
-        new_q = self.linear_b_q(self.linear_a_q(x))
-        new_v = self.linear_b_v(self.linear_a_v(x))
-        qkv[:, :, :, : self.dim] += new_q
-        qkv[:, :, :, -self.dim :] += new_v
-        qkv = self.lora_dropout(qkv)
-        return qkv
     # def forward(self, x):
-    #     B, N, _ = x.shape
-    #     qkv = self.qkv(x)  # [B, N, 3 * C]
-    #     qkv = qkv.view(B, N, 3, -1)  # [B, N, 3, C]
-        
-    #     new_q = self.linear_b_q(self.linear_a_q(x))  # [B, N, C]
-    #     new_v = self.linear_b_v(self.linear_a_v(x))  # [B, N, C]
-
-    #     qkv[:, :, 0, :] += new_q  # q
-    #     qkv[:, :, 2, :] += new_v  # v
-
-    #     qkv = qkv.view(B, N, 3 * self.dim)  # back to original shape
+    #     qkv = self.qkv(x)  # B,N,N,3*org_C
+    #     new_q = self.linear_b_q(self.linear_a_q(x))
+    #     new_v = self.linear_b_v(self.linear_a_v(x))
+    #     qkv[:, :, :, : self.dim] += new_q
+    #     qkv[:, :, :, -self.dim :] += new_v
     #     qkv = self.lora_dropout(qkv)
     #     return qkv
+    def forward(self, x):
+        B, N, _ = x.shape
+        qkv = self.qkv(x)  # [B, N, 3 * C]
+        qkv = qkv.view(B, N, 3, -1)  # [B, N, 3, C]
+        
+        new_q = self.linear_b_q(self.linear_a_q(x))  # [B, N, C]
+        new_v = self.linear_b_v(self.linear_a_v(x))  # [B, N, C]
+
+        qkv[:, :, 0, :] += new_q  # q
+        qkv[:, :, 2, :] += new_v  # v
+
+        qkv = qkv.view(B, N, 3 * self.dim)  # back to original shape
+        qkv = self.lora_dropout(qkv)
+        return qkv
 
 
 class _LoRA_qkv_proj(nn.Module):
