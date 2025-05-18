@@ -512,7 +512,8 @@ class LoRA_ESAM(nn.Module):
                 param.requires_grad = False
 
         if self.config["freeze_upscaling_cnn"]:
-            for param in sam_model.mask_decoder.output_upscaling.parameters():
+            # for param in sam_model.mask_decoder.output_upscaling.parameters():
+            for param in sam_model.mask_decoder.final_output_upscaling_layers.parameters():
                 param.requires_grad = False
 
         if self.config["freeze_mask_decoder_mask_tokens"]:
