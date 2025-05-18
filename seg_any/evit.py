@@ -261,9 +261,13 @@ class EfficientSam(nn.Module):
 
     def preprocess(self, x: torch.Tensor) -> torch.Tensor:
         """Normalize pixel values and pad to a square input."""
+        # if (
+        #     x.shape[2] != self.image_encoder.img_size
+        #     or x.shape[3] != self.image_encoder.img_size
+        # ):
         if (
             x.shape[2] != self.image_encoder.img_size
-            or x.shape[3] != self.image_encoder.img_size
+            or x.shape[1] != self.image_encoder.img_size
         ):
             x = F.interpolate(
                 x,
