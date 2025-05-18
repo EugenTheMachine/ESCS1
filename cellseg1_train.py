@@ -156,18 +156,18 @@ def compute_loss(
     all_cell_probs: List[List[int]],
 ) -> torch.Tensor:
     image_embeddings = model.sam.encoder_image_embeddings(batch_images)
-    # outputs = model.sam.forward_train(
-    #     batched_input=batch_points,
-    #     multimask_output=False,
-    #     input_image_embeddings=image_embeddings,
-    #     image_size=(config["sam_image_size"], config["sam_image_size"]),
-    # )
-    outputs = model.sam.forward(
+    outputs = model.sam.forward_train(
         batched_input=batch_points,
         multimask_output=False,
         input_image_embeddings=image_embeddings,
         image_size=(config["sam_image_size"], config["sam_image_size"]),
     )
+    # outputs = model.sam.forward(
+    #     batched_input=batch_points,
+    #     multimask_output=False,
+    #     input_image_embeddings=image_embeddings,
+    #     image_size=(config["sam_image_size"], config["sam_image_size"]),
+    # )
 
     pred_logits, pred_cell_probs = extract_outputs(outputs)
     true_masks, true_cell_prob = extract_true_masks(
