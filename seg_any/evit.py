@@ -197,6 +197,7 @@ class EfficientSam(nn.Module):
           List of image embeddings each of of shape [B, C(i), H(i), W(i)].
           The last embedding corresponds to the final layer.
         """
+        batched_images = torch.stack(images, dim=0)
         batched_images = self.preprocess(batched_images)
         return self.image_encoder(batched_images)
 
