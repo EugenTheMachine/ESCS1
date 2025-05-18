@@ -180,10 +180,25 @@ class EfficientSam(nn.Module):
         batched_images = self.preprocess(batched_images)
         return self.image_encoder(batched_images)
     
+    # def encoder_image_embeddings(self, images: List[torch.Tensor],):
+    #     input_images = torch.stack([self.preprocess(x) for x in images], dim=0)
+    #     image_embeddings = self.image_encoder(input_images)
+    #     return image_embeddings
+
     def encoder_image_embeddings(self, images: List[torch.Tensor],):
-        input_images = torch.stack([self.preprocess(x) for x in images], dim=0)
-        image_embeddings = self.image_encoder(input_images)
-        return image_embeddings
+        """
+        Predicts masks end-to-end from provided images and prompts.
+        If prompts are not known in advance, using SamPredictor is
+        recommended over calling the model directly.
+
+        Arguments:
+          batched_images: A tensor of shape [B, 3, H, W]
+        Returns:
+          List of image embeddings each of of shape [B, C(i), H(i), W(i)].
+          The last embedding corresponds to the final layer.
+        """
+        batched_images = self.preprocess(batched_images)
+        return self.image_encoder(batched_images)
 
     def forward(
         self,
