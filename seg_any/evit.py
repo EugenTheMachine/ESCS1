@@ -311,7 +311,8 @@ class EfficientSam(nn.Module):
         device = input_image_embeddings.device
 
         # Gather prompts
-        batched_points = torch.stack([rec["point_coords"] for rec in batched_input]).to(device)
+        # batched_points = torch.stack([rec["point_coords"] for rec in batched_input]).to(device)
+        batched_points = torch.cat([rec["point_coords"] for rec in batched_input], dim=0).to(device)
         batched_point_labels = torch.stack([rec["point_labels"] for rec in batched_input]).to(device)
 
         input_h, input_w = image_size
