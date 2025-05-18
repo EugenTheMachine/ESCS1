@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
-from typing import Any, List, Tuple, Type
+from typing import Any, List, Tuple, Type, Dict
 
 import torch
 import torch.nn.functional as F
